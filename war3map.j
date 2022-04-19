@@ -14542,6 +14542,8 @@ function DamageTarget takes unit source,unit target,integer dt,real dmg returns 
 		endif
 	elseif dt==8 then
 		call UnitDamageTarget(source,target,dmg,true,true,ATTACK_TYPE_NORMAL,DAMAGE_TYPE_UNIVERSAL,WEAPON_TYPE_WHOKNOWS)
+	elseif dt==9 then //shadowraze dmg, is melee damage type
+		call UnitDamageTarget(source,target,dmg,true,false,ATTACK_TYPE_NORMAL,DAMAGE_TYPE_DEATH,WEAPON_TYPE_WHOKNOWS)
 	endif
 endfunction
 
@@ -20127,7 +20129,7 @@ function Func0430 takes unit Hero returns nothing
 		call ExecuteFunc("Func3186")
 	elseif(i==80)then
 		call ExecuteFunc("SF_Necromastery_Reg")
-		call ExecuteFunc("Func3219")
+		call ExecuteFunc("SF_Shadowraze_Reg")
 		call ExecuteFunc("Func3225")
 		call ExecuteFunc("Func3232")
 		call ExecuteFunc("Func3221")
@@ -71679,7 +71681,7 @@ endfunction
 function Func2850 takes nothing returns boolean
 	local trigger t1=GetTriggeringTrigger()
 	local integer DW3=GetHandleId(t1)
-	local trigger t2=(LoadTriggerHandle(HY,(DW3),(275)))
+	local trigger t2=(LoadTriggerHandle(HY,(DW3),275))
 	local integer KAO=GetHandleId(t2)
 	local unit target=GetTriggerUnit()
 	local unit source=(LoadUnitHandle(HY,(DW3),(2)))
@@ -71709,7 +71711,7 @@ function Func2851 takes nothing returns nothing
 	set integer511=lvl
 	call TriggerRegisterUnitInRange(t1,source,750,Condition(function ReturnTrue))
 	call TriggerAddCondition(t1,Condition(function Func2850))
-	call SaveTriggerHandle(HY,(DW3),(275),(t2))
+	call SaveTriggerHandle(HY,(DW3),275,(t2))
 	call SaveUnitHandle(HY,(DW3),(2),(source))
 	call TriggerRegisterTimerEvent(t2,30,false)
 	call TriggerRegisterUnitEvent(t2,source,EVENT_UNIT_DEATH)
@@ -78310,77 +78312,58 @@ function Func3214 takes nothing returns nothing
 	set t=null
 endfunction
 
-constant function Shadowraze_RawCode1 takes nothing returns integer
-	return 'A0EY'
+function SF_Shadowraze_Filter takes nothing returns boolean
+	local integer i=GetSpellAbilityId()
+	return i=='A0EY' or i=='A0FH' or i=='A0F0'
 endfunction
 
-constant function Shadowraze_RawCode2 takes nothing returns integer
-	return 'A0FH'
+function SF_Shadowraze_Damage_Filter takes nothing returns boolean
+	return not IsUnitType(GetFilterUnit(),UNIT_TYPE_STRUCTURE) and IsUnitEnemy(GetFilterUnit(),GetOwningPlayer(GetTriggerUnit())) and GetUnitAbilityLevel(GetFilterUnit(),'A04R')!=1
 endfunction
 
-constant function Shadowraze_RawCode3 takes nothing returns integer
-	return 'A0F0'
+function SF_Shadowraze_Damage_Act takes nothing returns nothing
+	local unit u=GetTriggerUnit()
+	local real dmg=25+75*GetUnitAbilityLevel(,GetSpellAbilityId())
+	call DamageTarget(u,GetEnumUnit(),9,dmg)
+	set u=null
 endfunction
 
-constant function Shadowraze_Area takes nothing returns integer
-	return 275
+function SF_Shadowraze_Damage takes group g, unit u ,real sx , real sy, real sa, real dist returns nothing
+	local real x=sx+200*Cos(sa*bj_DEGTORAD)
+	local real y=sy+200*Sin(sa*bj_DEGTORAD)
+	local unit d=CreateUnit(GetOwningPlayer(u),'e006',x,y,0)
+	call UnitApplyTimedLife(d,'BTLF',2)
+	call GroupEnumUnitsInRange(g,x,y,dist,Condition(function SF_Shadowraze_Damage_Filter))
+	call ForGroup(g,function SF_Shadowraze_Damage_Act)
+	call GroupClear(g)
+	set d=null
 endfunction
 
-function Func3215 takes nothing returns boolean
-	return GetSpellAbilityId()==('A0EY')or GetSpellAbilityId()==('A0FH')or GetSpellAbilityId()==('A0F0')
-endfunction
-
-function Func3216 takes nothing returns boolean
-	return IsUnitType(GetFilterUnit(),UNIT_TYPE_STRUCTURE)==false and IsUnitEnemy(GetFilterUnit(),GetOwningPlayer(GetTriggerUnit()))and GetUnitAbilityLevel(GetFilterUnit(),'A04R')!=1
-endfunction
-
-function Func3217 takes nothing returns nothing
-	call UnitDamageTarget(GetTriggerUnit(),GetEnumUnit(),25+75*GetUnitAbilityLevel(GetTriggerUnit(),GetSpellAbilityId()),true,false,ATTACK_TYPE_NORMAL,DAMAGE_TYPE_DEATH,WEAPON_TYPE_WHOKNOWS)
-endfunction
-
-function Func3218 takes nothing returns nothing
-	local unit Hero=GetTriggerUnit()
-	local unit caster
-	local group Z51=GetAvailableGroup()
-	local boolexpr QL1=Condition(function Func3216)
-	local real a=GetUnitFacing(Hero)
-	local real x
-	local real y
-	if GetSpellAbilityId()==('A0EY')then
-		set x=GetUnitX(Hero)+200*Cos(a*bj_DEGTORAD)
-		set y=GetUnitY(Hero)+200*Sin(a*bj_DEGTORAD)
-		set caster=CreateUnit(GetOwningPlayer(Hero),'e006',x,y,0)
-		call UnitApplyTimedLife(caster,'BTLF',2)
-		call GroupEnumUnitsInRange(Z51,x,y,(275),QL1)
-		call ForGroup(Z51,function Func3217)
-		call GroupClear(Z51)
+function SF_Shadowraze_Effect takes nothing returns nothing
+	local unit u=GetTriggerUnit()
+	local group g=GetAvailableGroup()
+	local integer id=GetSpellAbilityId()
+	local real x=GetUnitX(u)
+	local real y=GetUnitY(u)
+	local real a=GetUnitFacing(u)
+	if id=='A0EY' then
+		call SF_Shadowraze_Damage(g,u,x,y,a,200)
+	elseif id== 'A0FH' then
+		call SF_Shadowraze_Damage(g,u,x,y,a,450)
+	elseif id=='A0F0' then
+		call SF_Shadowraze_Damage(g,u,x,y,a,700)
 	endif
-	if GetSpellAbilityId()==('A0FH')then
-		set x=GetUnitX(Hero)+450*Cos(a*bj_DEGTORAD)
-		set y=GetUnitY(Hero)+450*Sin(a*bj_DEGTORAD)
-		set caster=CreateUnit(GetOwningPlayer(Hero),'e006',x,y,0)
-		call UnitApplyTimedLife(caster,'BTLF',2)
-		call GroupEnumUnitsInRange(Z51,x,y,(275),QL1)
-		call ForGroup(Z51,function Func3217)
-		call GroupClear(Z51)
-	endif
-	if GetSpellAbilityId()==('A0F0')then
-		set x=GetUnitX(Hero)+700*Cos(a*bj_DEGTORAD)
-		set y=GetUnitY(Hero)+700*Sin(a*bj_DEGTORAD)
-		set caster=CreateUnit(GetOwningPlayer(Hero),'e006',x,y,0)
-		call UnitApplyTimedLife(caster,'BTLF',2)
-		call GroupEnumUnitsInRange(Z51,x,y,(275),QL1)
-		call ForGroup(Z51,function Func3217)
-		call GroupClear(Z51)
-	endif
-	call KillGroup(Z51)
+	call KillGroup(g)
+	set u=null
+	set g=null
 endfunction
 
-function Func3219 takes nothing returns nothing
+function SF_Shadowraze_Reg takes nothing returns nothing
 	local trigger t=CreateTrigger()
 	call TriggerRegisterAnyUnitEvent(t,EVENT_PLAYER_UNIT_SPELL_EFFECT)
-	call TriggerAddAction(t,function Func3218)
-	call TriggerAddCondition(t,Condition(function Func3215))
+	call TriggerAddAction(t,function SF_Shadowraze_Effect)
+	call TriggerAddCondition(t,Condition(function SF_Shadowraze_Filter))
+	set t=null
 endfunction
 
 function Func3220 takes nothing returns nothing
@@ -78410,7 +78393,7 @@ function Func3222 takes nothing returns boolean
 	return GetSpellAbilityId()=='A29J'
 endfunction
 
-function Requiem_Act takes unit u,integer souls returns nothing
+function Requiem_ReleaseSouls takes unit u,integer souls returns nothing
 	local integer souls2=souls
 	local integer i
 	local integer k
@@ -78430,7 +78413,7 @@ function Requiem_Act takes unit u,integer souls returns nothing
 	if souls2==0 then
 		return
 	endif
-	set a=360./(souls2*1.)
+	set a=360./souls2
 	set i=1
 	set k=souls2
 	loop
@@ -78439,7 +78422,7 @@ function Requiem_Act takes unit u,integer souls returns nothing
 		call UnitAddAbility(d,'Aloc')
 		call SetUnitX(d,x)
 		call SetUnitY(d,y)
-		call UnitApplyTimedLife(d,'BTLF',15.00)
+		call UnitApplyTimedLife(d,'BTLF',15)
 		call UnitAddAbility(d,'A0HG')
 		call SetUnitAbilityLevel(d,'A0HG',lvl)
 		set r=i*a*bj_DEGTORAD
@@ -78448,13 +78431,14 @@ function Requiem_Act takes unit u,integer souls returns nothing
 		set d=null
 	endloop
 	set d=null
+	set p=null
 endfunction
 
 function Requiem_Effect takes nothing returns nothing
-	local integer souls=(LoadInteger(HY,(GetHandleId(GetTriggerUnit())),(710)))
-	local unit PKI=GetTriggerUnit()
-	call Requiem_Act(PKI,souls)
-	set PKI=null
+		local unit u=GetTriggerUnit()
+	local integer souls=LoadInteger(HY,GetHandleId(u),710)
+	call Requiem_ReleaseSouls(u,souls)
+	set u=null
 endfunction
 
 function Func3225 takes nothing returns nothing
@@ -78638,7 +78622,7 @@ function SF_Necromastery_OnDeath takes nothing returns nothing
 	local integer lvl=R2I(GetUnitAbilityLevel(u,'A0CQ')*0.5)+1
 	call SaveInteger(HY,hu,710,lvl)
 	call SetUnitAbilityLevel(u,'A0CQ',lvl)
-	call Requiem_Act(u,souls-LoadInteger(HY,hu,710))
+	call Requiem_ReleaseSouls(u,souls-LoadInteger(HY,hu,710))
 	set u=null
 endfunction
 
